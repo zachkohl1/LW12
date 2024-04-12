@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
 
 	// establish address - this is the server and will
 	// only be listening on the specified port
-	struct sockaddr_in sock_address;
+	struct sockaddr_in sock_address, client_addr;
 	
 	// address family is AF_INET
 	// our IP address is INADDR_ANY (any of our IP addresses)
@@ -97,9 +97,11 @@ int main(int argc, char** argv) {
 	int connection;
 	
     while (1) {			
+		socklen_t client_addr_len = sizeof(client_addr);
+
 		// hang in accept and wait for connection
 		printf("====Waiting====\n");
-		if ( (connection = accept(sock, NULL, NULL) ) < 0 ) 
+		if((connection = accept(sock, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) 
 		{
 			perror("Error calling accept");
 			exit(-1);
@@ -133,14 +135,12 @@ int main(int argc, char** argv) {
 				break;  // break the inner while loop
 			}
 			
-			// print info to console
-			printf("Received message\n");
-
-			// put message to console
+        	// Print received message and client IP
+     		printf("Received message from: %s\nPort: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 			printf("Message: %s\n", buffer);
 
 			// send it back to client
-			if ( (echoed = write(connection, buffer, bytes_read + 1)) < 0 )
+			if ((echoed = write(connection, buffer, bytes_read + 1)) < 0 )
 			{
 				perror("Error sending echo");
 				exit(-1);
