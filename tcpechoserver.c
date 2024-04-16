@@ -8,6 +8,7 @@
 #include <sys/socket.h> 
 #include <netinet/in.h> 
 #include <arpa/inet.h>  
+#include <pthread.h>
 
 
 // Max message to echo
@@ -20,6 +21,7 @@ int main(int argc, char** argv) {
 	// locals
 	unsigned short port = 3300; // default port
 	int sock; // socket descriptor
+	pid_t pid;
 
 	// Was help requested?  Print usage statement
 	if (argc > 1 && ((!strcmp(argv[1],"-?"))||(!strcmp(argv[1],"-h"))))
@@ -106,51 +108,62 @@ int main(int argc, char** argv) {
 			perror("Error calling accept");
 			exit(-1);
 		}		
-		
-		// ready to r/w - another loop - it will be broken when
-		// the connection is closed
-		while(1)
+
+		// Create child process
+		pid = fork();
+
+		if(pid < 0)
 		{
-			buffer[0] = '\0'; 	// guarantee a null here to break out on a
-								// disconnect
-
-			// read message								
-			bytes_read = read(connection,buffer,MAX_MESSAGE-1);
-						
-			if (bytes_read == 0)
-			{	// socket closed
-				printf("====Client Disconnected====\n");
-				close(connection);
-				break;  // break the inner while loop
-			}
-
-			// make sure buffer has null temrinator
-			buffer[bytes_read] = '\0';
-						
-			// see if client wants us to disconnect
-			if (strncmp(buffer,"quit",4)==0)
+			perror("ERROR on fork");
+		} else if(!pid){
+			close(sock);
+			// ready to r/w - another loop - it will be broken when
+			// the connection is closed
+			while(1)
 			{
-				printf("====Server Disconnecting====\n");
-				close(connection);
-				break;  // break the inner while loop
-			}
-			
-        	// Print received message and client IP
-     		printf("Received message from: %s\nPort: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-			printf("Message: %s\n", buffer);
+				buffer[0] = '\0'; 	// guarantee a null here to break out on a
+									// disconnect
 
-			// send it back to client
-			if ((echoed = write(connection, buffer, bytes_read + 1)) < 0 )
-			{
-				perror("Error sending echo");
-				exit(-1);
-			}
-			else
-			{			
-				printf("Bytes echoed: %d\n",echoed);
-			}
+				// read message								
+				bytes_read = read(connection,buffer,MAX_MESSAGE-1);
+							
+				if (bytes_read == 0)
+				{	// socket closed
+					printf("====Client Disconnected====\n");
+					close(connection);
+					break;  // break the inner while loop
+				}
+
+				// make sure buffer has null temrinator
+				buffer[bytes_read] = '\0';
+							
+				// see if client wants us to disconnect
+				if (strncmp(buffer,"quit",4)==0)
+				{
+					printf("====Server Disconnecting====\n");
+					close(connection);
+					break;  // break the inner while loop
+				}
 				
-		}  // end of accept inner-while
+				// Print received message and client IP
+				printf("Received message from: %s\nPort: %i\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+				printf("Message: %s\n", buffer);
+
+				// send it back to client
+				if ((echoed = write(connection, buffer, bytes_read + 1)) < 0 )
+				{
+					perror("Error sending echo");
+					exit(-1);
+				}
+				else
+				{			
+					printf("Bytes echoed: %d\n",echoed);
+				}
+					
+			}  // end of accept inner-while
+		} else {
+			close(connection);
+		}
     }	// end of outer loop
 	free(buffer);
 	// will never get here
